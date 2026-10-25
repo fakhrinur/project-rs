@@ -1,0 +1,13 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Model akan dibuat otomatis dari database yang sudah ada lewat:
+//   npm run db:pull
+// Setelah itu jalankan:
+//   npm run db:generate
