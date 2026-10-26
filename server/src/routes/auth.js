@@ -8,7 +8,10 @@ const router = Router()
 
 async function findUserByIdentifier(identifier, role) {
   const byUsername = await prisma.users.findFirst({
-    where: { username: identifier, role },
+    where: {
+      username: { equals: identifier, mode: 'insensitive' },
+      role,
+    },
   })
 
   if (byUsername) return byUsername

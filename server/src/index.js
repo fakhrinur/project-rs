@@ -16,7 +16,28 @@ const allowedOrigins = (process.env.CORS_ORIGIN ?? 'http://localhost:5173')
   .map((origin) => origin.trim())
   .filter(Boolean)
 
-app.use(cors({ origin: allowedOrigins, credentials: true }))
+const isProduction = process.env.NODE_ENV === 'production'
+const localOriginPattern = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      // Tanpa Origin: curl, Postman, atau request same-origin
+      if (!origin) return callback(null, true)
+
+      if (allowedOrigins.includes(origin)) return callback(null, true)
+
+      // Saat development, izinkan semua port localhost/127.0.0.1
+      // agar Vite yang pindah port (5174, 5175, ...) tetap bisa terhubung
+      if (!isProduction && localOriginPattern.test(origin)) {
+        return callback(null, true)
+      }
+
+      return callback(new Error(`Origin ${origin} tidak diizinkan oleh CORS`))
+    },
+    credentials: true,
+  }),
+)
 app.use(express.json())
 
 app.get('/api/health', async (_req, res) => {

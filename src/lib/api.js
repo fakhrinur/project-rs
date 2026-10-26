@@ -71,7 +71,7 @@ async function request(path, { method = 'GET', body } = {}) {
     })
   } catch {
     throw new ApiError(
-      'Tidak dapat terhubung ke server. Pastikan backend berjalan di port 4000.',
+      'Tidak dapat terhubung ke server. Pastikan backend berjalan di http://localhost:4000 dan halaman ini dibuka lewat http://localhost:5173.',
       0,
     )
   }
