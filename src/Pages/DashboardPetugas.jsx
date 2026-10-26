@@ -1,314 +1,693 @@
-import { useState } from "react";
+import { useMemo, useState } from 'react'
+import DashboardShell from '../components/dashboard/DashboardShell'
+import {
+  Badge,
+  Button,
+  Card,
+  ErrorNote,
+  Field,
+  Loading,
+  Table,
+  ui,
+} from '../components/dashboard/ui'
+import { api } from '../lib/api'
+import { useAuth } from '../lib/AuthContext'
+import { formatDate, formatDateTime, formatTime } from '../lib/format'
+import { useApi } from '../lib/useApi'
 
-/**
- * Dashboard Petugas — Sistem Manajemen Rumah Sakit
- * -------------------------------------------------
- * Ditampilkan setelah petugas berhasil login.
- *
- * CARA PAKAI:
- * 1. Simpan sebagai src/Pages/DashboardPetugas.jsx
- * 2. Daftarkan route-nya di App.jsx, contoh:
- *      <Route path="/dashboard/petugas" element={<DashboardPetugas namaPetugas="Siti Rahma" />} />
- * 3. Ganti data `MENU_ITEMS` dan konten tiap menu sesuai kebutuhan nyata
- *    (mis. hasil fetch dari API data pasien, pendaftaran, dsb).
- */
+const MENUS = [
+  { id: 'data-pasien', label: 'Data Pasien', icon: 'users' },
+  { id: 'pendaftaran', label: 'Pendaftaran', icon: 'clipboard' },
+  { id: 'antrean', label: 'Antrean', icon: 'queue' },
+  { id: 'jadwal-dokter', label: 'Jadwal Dokter', icon: 'calendar' },
+]
 
-const MENU_ITEMS = [
-  { id: "data-pasien", label: "Data Pasien", icon: "users" },
-  { id: "pendaftaran", label: "Pendaftaran", icon: "clipboard" },
-  { id: "antrean", label: "Antrean", icon: "queue" },
-  { id: "jadwal-dokter", label: "Jadwal Dokter", icon: "calendar" },
-];
+export default function DashboardPetugas() {
+  const { user } = useAuth()
+  const [activeMenu, setActiveMenu] = useState('data-pasien')
 
-const ICONS = {
-  users: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <circle cx="9" cy="8" r="3" stroke="currentColor" strokeWidth="2" />
-      <path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <path d="M15 8.5C16.1 8.5 17 7.6 17 6.5C17 5.4 16.1 4.5 15 4.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <path d="M16 14.5C18.3 15 20 16.7 20 19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  ),
-  clipboard: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <rect x="5" y="4" width="14" height="17" rx="2" stroke="currentColor" strokeWidth="2" />
-      <path d="M9 4V3a1 1 0 011-1h4a1 1 0 011 1v1" stroke="currentColor" strokeWidth="2" />
-      <path d="M8 11H16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <path d="M8 15H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  ),
-  queue: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <circle cx="7" cy="8" r="2.5" stroke="currentColor" strokeWidth="2" />
-      <circle cx="17" cy="8" r="2.5" stroke="currentColor" strokeWidth="2" />
-      <path d="M2.5 19c0-2.8 2-5 4.5-5s4.5 2.2 4.5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <path d="M12.5 19c0-2.8 2-5 4.5-5s4.5 2.2 4.5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  ),
-  calendar: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="2" />
-      <path d="M3 10H21" stroke="currentColor" strokeWidth="2" />
-      <path d="M8 3V7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <path d="M16 3V7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  ),
-};
-
-const CONTENT = {
-  "data-pasien": {
-    title: "Data Pasien",
-    body: "Kelola data pasien: cari, tambah, dan perbarui data pribadi maupun data rekam medis dasar. Hubungkan bagian ini ke endpoint /api/pasien.",
-  },
-  pendaftaran: {
-    title: "Pendaftaran",
-    body: "Daftarkan kunjungan pasien baru: pilih poli, dokter, dan jadwal. Setelah submit, kirim data ke /api/pendaftaran.",
-  },
-  antrean: {
-    title: "Antrean",
-    body: "Pantau dan kelola antrean seluruh poli hari ini, termasuk memanggil nomor antrean berikutnya. Ambil data dari /api/antrean.",
-  },
-  "jadwal-dokter": {
-    title: "Jadwal Dokter",
-    body: "Lihat dan atur jadwal praktik seluruh dokter per poli dan hari, diambil dari /api/jadwal.",
-  },
-};
-
-export default function DashboardPetugas({ namaPetugas = "Petugas" }) {
-  const [activeMenu, setActiveMenu] = useState("data-pasien");
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const active = CONTENT[activeMenu];
+  const title = MENUS.find((menu) => menu.id === activeMenu)?.label ?? 'Dashboard'
 
   return (
-    <div style={styles.page}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@600;700&family=Manrope:wght@400;500;600;700&display=swap');
-        * { box-sizing: border-box; }
-        .menu-item { transition: background-color .15s ease, color .15s ease; }
-        .menu-item:hover { background: rgba(255,255,255,0.08); }
-        @media (max-width: 760px) {
-          .sidebar { position: fixed; z-index: 20; height: 100%; transform: translateX(-100%); }
-          .sidebar.open { transform: translateX(0); }
-          .menu-toggle { display: inline-flex !important; }
+    <DashboardShell
+      roleLabel="Petugas"
+      title={title}
+      subtitle={`Selamat datang kembali, ${user?.nama ?? 'Petugas'}.`}
+      menus={MENUS}
+      activeMenu={activeMenu}
+      onMenuChange={setActiveMenu}
+    >
+      {activeMenu === 'data-pasien' && <DataPasien />}
+      {activeMenu === 'pendaftaran' && <PendaftaranPetugas />}
+      {activeMenu === 'antrean' && <AntreanPetugas />}
+      {activeMenu === 'jadwal-dokter' && <JadwalPetugas />}
+    </DashboardShell>
+  )
+}
+
+function DataPasien() {
+  const { data, loading, error, reload } = useApi('/petugas/pasien')
+  const [query, setQuery] = useState('')
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm] = useState({
+    nik: '',
+    name: '',
+    gender: 'L',
+    birth_date: '',
+    address: '',
+    phone: '',
+    blood_type: '',
+  })
+  const [submitting, setSubmitting] = useState(false)
+  const [formError, setFormError] = useState(null)
+  const [notice, setNotice] = useState(null)
+
+  const patients = useMemo(() => {
+    const list = data?.data ?? []
+    const keyword = query.trim().toLowerCase()
+
+    if (!keyword) return list
+
+    return list.filter((patient) =>
+      `${patient.name} ${patient.nik ?? ''}`.toLowerCase().includes(keyword),
+    )
+  }, [data, query])
+
+  const update = (field) => (event) => {
+    setForm((current) => ({ ...current, [field]: event.target.value }))
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault()
+    setFormError(null)
+    setNotice(null)
+    setSubmitting(true)
+
+    try {
+      const response = await api.post('/petugas/pasien', {
+        ...form,
+        birth_date: form.birth_date || undefined,
+        blood_type: form.blood_type || undefined,
+        address: form.address || undefined,
+        phone: form.phone || undefined,
+      })
+
+      setNotice(response.message ?? 'Pasien berhasil ditambahkan.')
+      setForm({
+        nik: '',
+        name: '',
+        gender: 'L',
+        birth_date: '',
+        address: '',
+        phone: '',
+        blood_type: '',
+      })
+      setShowForm(false)
+      reload()
+    } catch (requestError) {
+      setFormError(requestError.message)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div style={{ display: 'grid', gap: 16 }}>
+      <Card
+        title="Data Pasien"
+        subtitle="Cari pasien atau tambahkan pasien baru."
+        actions={
+          <div style={{ ...ui.row, gap: 8 }}>
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Cari nama / NIK"
+              style={{ ...ui.input, width: 210 }}
+            />
+            <Button onClick={() => setShowForm((value) => !value)}>
+              {showForm ? 'Tutup Form' : '+ Pasien Baru'}
+            </Button>
+          </div>
         }
-      `}</style>
+      >
+        <ErrorNote message={error} onRetry={reload} />
+        {notice && <p style={styles.notice}>{notice}</p>}
 
-      <aside className="sidebar" style={{ ...styles.sidebar, ...(sidebarOpen ? { transform: "translateX(0)" } : {}) }}>
-        <div style={styles.sidebarHeader}>
-          <div style={styles.crossMark} aria-hidden="true">
-            <span style={styles.crossV} />
-            <span style={styles.crossH} />
-          </div>
-          <div>
-            <p style={styles.roleLabel}>Petugas</p>
-            <p style={styles.userName}>{namaPetugas}</p>
-          </div>
-        </div>
+        {showForm && (
+          <form onSubmit={handleSubmit} style={styles.formBox}>
+            <div style={styles.grid2}>
+              <Field label="NIK (16 digit)">
+                <input value={form.nik} onChange={update('nik')} maxLength={16} required style={ui.input} />
+              </Field>
+              <Field label="Nama Lengkap">
+                <input value={form.name} onChange={update('name')} required style={ui.input} />
+              </Field>
+              <Field label="Jenis Kelamin">
+                <select value={form.gender} onChange={update('gender')} style={ui.input}>
+                  <option value="L">Laki-laki</option>
+                  <option value="P">Perempuan</option>
+                </select>
+              </Field>
+              <Field label="Tanggal Lahir">
+                <input type="date" value={form.birth_date} onChange={update('birth_date')} style={ui.input} />
+              </Field>
+              <Field label="No. Telepon">
+                <input value={form.phone} onChange={update('phone')} style={ui.input} />
+              </Field>
+              <Field label="Golongan Darah">
+                <input value={form.blood_type} onChange={update('blood_type')} placeholder="A / B / AB / O" style={ui.input} />
+              </Field>
+            </div>
+            <Field label="Alamat">
+              <textarea rows={2} value={form.address} onChange={update('address')} style={{ ...ui.input, resize: 'vertical' }} />
+            </Field>
 
-        <p style={styles.navHeading}>Dashboard</p>
-        <nav>
-          {MENU_ITEMS.map((item) => {
-            const isActive = item.id === activeMenu;
-            return (
-              <button
-                key={item.id}
-                className="menu-item"
-                onClick={() => {
-                  setActiveMenu(item.id);
-                  setSidebarOpen(false);
-                }}
-                style={{
-                  ...styles.menuButton,
-                  ...(isActive ? styles.menuButtonActive : {}),
-                }}
-              >
-                <span style={{ color: isActive ? "#5FBFA9" : "#9FC0B8" }}>{ICONS[item.icon]}</span>
-                {item.label}
-              </button>
-            );
-          })}
-        </nav>
+            <ErrorNote message={formError} />
 
-        <button style={styles.logoutBtn} type="button">
-          Keluar
-        </button>
-      </aside>
+            <div style={{ ...ui.row, gap: 8 }}>
+              <Button type="submit" disabled={submitting}>
+                {submitting ? 'Menyimpan...' : 'Simpan Pasien'}
+              </Button>
+              <Button variant="ghost" onClick={() => setShowForm(false)}>
+                Batal
+              </Button>
+            </div>
+          </form>
+        )}
 
-      <main style={styles.main}>
-        <header style={styles.topBar}>
-          <button
-            className="menu-toggle"
-            aria-label="Buka menu"
-            onClick={() => setSidebarOpen((v) => !v)}
-            style={styles.menuToggle}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-              <path d="M4 6H20" stroke="#132A25" strokeWidth="2" strokeLinecap="round" />
-              <path d="M4 12H20" stroke="#132A25" strokeWidth="2" strokeLinecap="round" />
-              <path d="M4 18H20" stroke="#132A25" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-          </button>
-          <div>
-            <h1 style={styles.pageTitle}>{active.title}</h1>
-            <p style={styles.pageSubtitle}>Selamat bertugas, {namaPetugas}.</p>
-          </div>
-        </header>
+        {loading && <Loading />}
 
-        <section style={styles.contentCard}>
-          <p style={styles.contentBody}>{active.body}</p>
-        </section>
-      </main>
+        {!loading && (
+          <Table
+            empty="Belum ada data pasien."
+            rows={patients.map((patient) => ({ ...patient, key: patient.patient_id }))}
+            columns={[
+              { key: 'name', label: 'Nama' },
+              { key: 'nik', label: 'NIK', render: (row) => row.nik ?? '-' },
+              { key: 'gender', label: 'JK', render: (row) => row.gender ?? '-' },
+              {
+                key: 'birth_date',
+                label: 'Tgl Lahir',
+                render: (row) => (row.birth_date ? formatDate(row.birth_date) : '-'),
+              },
+              { key: 'phone', label: 'Telepon', render: (row) => row.phone ?? '-' },
+              {
+                key: 'account',
+                label: 'Akun',
+                render: (row) => (row.users ? row.users.username : 'belum ada'),
+              },
+            ]}
+          />
+        )}
+      </Card>
     </div>
-  );
+  )
+}
+
+function PendaftaranPetugas() {
+  const patients = useApi('/petugas/pasien')
+  const poli = useApi('/poli')
+  const doctors = useApi('/dokter')
+  const registrations = useApi('/petugas/pendaftaran')
+
+  const [form, setForm] = useState({
+    patient_id: '',
+    polyclinic_id: '',
+    doctor_id: '',
+    complaint: '',
+  })
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState(null)
+  const [notice, setNotice] = useState(null)
+
+  const availableDoctors = useMemo(() => {
+    const list = doctors.data?.data ?? []
+    if (!form.polyclinic_id) return list
+
+    return list.filter((doctor) =>
+      doctor.doctor_schedules.some(
+        (schedule) => String(schedule.polyclinic_id) === form.polyclinic_id,
+      ),
+    )
+  }, [doctors.data, form.polyclinic_id])
+
+  const update = (field) => (event) => {
+    const value = event.target.value
+    setForm((current) => ({
+      ...current,
+      [field]: value,
+      ...(field === 'polyclinic_id' ? { doctor_id: '' } : {}),
+    }))
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault()
+    setError(null)
+    setNotice(null)
+
+    if (!form.patient_id || !form.polyclinic_id || !form.doctor_id) {
+      setError('Pasien, poli, dan dokter wajib dipilih.')
+      return
+    }
+
+    setSubmitting(true)
+
+    try {
+      await api.post('/petugas/pendaftaran', {
+        patient_id: Number(form.patient_id),
+        polyclinic_id: Number(form.polyclinic_id),
+        doctor_id: Number(form.doctor_id),
+        complaint: form.complaint.trim() || undefined,
+      })
+
+      setNotice('Pendaftaran berhasil dibuat.')
+      setForm({ patient_id: '', polyclinic_id: '', doctor_id: '', complaint: '' })
+      registrations.reload()
+    } catch (requestError) {
+      setError(requestError.message)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function changeStatus(id, status) {
+    setError(null)
+
+    try {
+      await api.patch(`/petugas/pendaftaran/${id}/status`, { status })
+      registrations.reload()
+    } catch (requestError) {
+      setError(requestError.message)
+    }
+  }
+
+  return (
+    <div style={{ display: 'grid', gap: 16 }}>
+      <Card title="Pendaftaran Pasien" subtitle="Daftarkan kunjungan baru untuk pasien.">
+        <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 14 }}>
+          <div style={styles.grid2}>
+            <Field label="Pasien">
+              <select value={form.patient_id} onChange={update('patient_id')} style={ui.input}>
+                <option value="">Pilih pasien</option>
+                {(patients.data?.data ?? []).map((patient) => (
+                  <option key={patient.patient_id} value={patient.patient_id}>
+                    {patient.name} — {patient.nik ?? '-'}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <Field label="Poli">
+              <select value={form.polyclinic_id} onChange={update('polyclinic_id')} style={ui.input}>
+                <option value="">Pilih poli</option>
+                {(poli.data?.data ?? []).map((item) => (
+                  <option key={item.polyclinic_id} value={item.polyclinic_id}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <Field label="Dokter">
+              <select value={form.doctor_id} onChange={update('doctor_id')} style={ui.input}>
+                <option value="">Pilih dokter</option>
+                {availableDoctors.map((doctor) => (
+                  <option key={doctor.doctor_id} value={doctor.doctor_id}>
+                    {doctor.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <Field label="Keluhan">
+              <input value={form.complaint} onChange={update('complaint')} placeholder="Keluhan pasien" style={ui.input} />
+            </Field>
+          </div>
+
+          <ErrorNote message={error || patients.error} onRetry={patients.reload} />
+          {notice && <p style={styles.notice}>{notice}</p>}
+
+          <div>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? 'Memproses...' : 'Buat Pendaftaran'}
+            </Button>
+          </div>
+        </form>
+      </Card>
+
+      <Card
+        title="Pendaftaran Hari Ini"
+        subtitle="Ubah status antrean pasien."
+        actions={<Button variant="ghost" onClick={registrations.reload}>Muat ulang</Button>}
+      >
+        {registrations.loading && <Loading />}
+        <ErrorNote message={registrations.error} onRetry={registrations.reload} />
+
+        {!registrations.loading && (
+          <Table
+            empty="Belum ada pendaftaran hari ini."
+            rows={(registrations.data?.data ?? []).map((row) => ({
+              ...row,
+              key: row.registration_id,
+            }))}
+            columns={[
+              { key: 'queue_no', label: 'No.', render: (row) => `#${row.queue_no ?? '-'}` },
+              { key: 'patient', label: 'Pasien', render: (row) => row.patients?.name },
+              { key: 'poli', label: 'Poli', render: (row) => row.polyclinics?.name },
+              { key: 'doctor', label: 'Dokter', render: (row) => row.doctors?.name },
+              {
+                key: 'time',
+                label: 'Jam',
+                render: (row) => formatTime(row.registration_date),
+              },
+              { key: 'status', label: 'Status', render: (row) => <Badge>{row.status}</Badge> },
+              {
+                key: 'actions',
+                label: 'Aksi',
+                render: (row) => (
+                  <div style={{ ...ui.row, gap: 6 }}>
+                    {row.status === 'menunggu' && (
+                      <Button
+                        variant="ghost"
+                        style={{ padding: '5px 9px', fontSize: 12 }}
+                        onClick={() => changeStatus(row.registration_id, 'dipanggil')}
+                      >
+                        Panggil
+                      </Button>
+                    )}
+                    {row.status !== 'selesai' && row.status !== 'batal' && (
+                      <Button
+                        variant="ghost"
+                        style={{ padding: '5px 9px', fontSize: 12 }}
+                        onClick={() => changeStatus(row.registration_id, 'selesai')}
+                      >
+                        Selesai
+                      </Button>
+                    )}
+                    {row.status !== 'batal' && (
+                      <Button
+                        variant="danger"
+                        style={{ padding: '5px 9px', fontSize: 12 }}
+                        onClick={() => changeStatus(row.registration_id, 'batal')}
+                      >
+                        Batal
+                      </Button>
+                    )}
+                  </div>
+                ),
+              },
+            ]}
+          />
+        )}
+      </Card>
+    </div>
+  )
+}
+
+function AntreanPetugas() {
+  const { data, loading, error, reload } = useApi('/petugas/antrean')
+  const rows = data?.data ?? []
+  const summary = data?.summary
+
+  return (
+    <div style={{ display: 'grid', gap: 16 }}>
+      <div style={styles.statGrid}>
+        <StatCard label="Total antrean" value={summary?.total ?? 0} />
+        <StatCard label="Menunggu" value={summary?.menunggu ?? 0} tone="#946200" />
+        <StatCard label="Selesai" value={summary?.selesai ?? 0} tone="#2E7D32" />
+      </div>
+
+      <Card
+        title="Antrean Hari Ini"
+        subtitle="Daftar antrean seluruh poli."
+        actions={<Button variant="ghost" onClick={reload}>Muat ulang</Button>}
+      >
+        {loading && <Loading />}
+        <ErrorNote message={error} onRetry={reload} />
+
+        {!loading && (
+          <Table
+            empty="Belum ada antrean hari ini."
+            rows={rows.map((row) => ({ ...row, key: row.registration_id }))}
+            columns={[
+              { key: 'queue_no', label: 'No.', render: (row) => `#${row.queue_no ?? '-'}` },
+              { key: 'patient', label: 'Pasien', render: (row) => row.patients?.name },
+              { key: 'poli', label: 'Poli', render: (row) => row.polyclinics?.name },
+              { key: 'doctor', label: 'Dokter', render: (row) => row.doctors?.name },
+              {
+                key: 'registered',
+                label: 'Terdaftar',
+                render: (row) => formatDateTime(row.registration_date),
+              },
+              { key: 'status', label: 'Status', render: (row) => <Badge>{row.status}</Badge> },
+            ]}
+          />
+        )}
+
+        {summary?.poli?.length > 0 && (
+          <div style={{ ...ui.row, gap: 8, marginTop: 14 }}>
+            {summary.poli.map((item) => (
+              <span key={item.polyclinic} style={styles.poliChip}>
+                {item.polyclinic}: {item.total} antrean ({item.menunggu} menunggu)
+              </span>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  )
+}
+
+function JadwalPetugas() {
+  const schedules = useApi('/jadwal')
+  const doctors = useApi('/dokter')
+  const poli = useApi('/poli')
+  const [form, setForm] = useState({
+    doctor_id: '',
+    polyclinic_id: '',
+    day: 'Senin',
+    start_time: '08:00',
+    end_time: '12:00',
+  })
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState(null)
+  const [notice, setNotice] = useState(null)
+
+  const update = (field) => (event) => {
+    setForm((current) => ({ ...current, [field]: event.target.value }))
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault()
+    setError(null)
+    setNotice(null)
+
+    if (!form.doctor_id || !form.polyclinic_id) {
+      setError('Dokter dan poli wajib dipilih.')
+      return
+    }
+
+    setSubmitting(true)
+
+    try {
+      await api.post('/petugas/jadwal', {
+        doctor_id: Number(form.doctor_id),
+        polyclinic_id: Number(form.polyclinic_id),
+        day: form.day,
+        start_time: form.start_time,
+        end_time: form.end_time,
+      })
+      setNotice('Jadwal berhasil ditambahkan.')
+      schedules.reload()
+    } catch (requestError) {
+      setError(requestError.message)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function removeSchedule(id) {
+    setError(null)
+
+    try {
+      await api.delete(`/petugas/jadwal/${id}`)
+      schedules.reload()
+    } catch (requestError) {
+      setError(requestError.message)
+    }
+  }
+
+  return (
+    <div style={{ display: 'grid', gap: 16 }}>
+      <Card title="Tambah Jadwal Praktik" subtitle="Atur jadwal dokter per poli dan hari.">
+        <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 14 }}>
+          <div style={styles.grid3}>
+            <Field label="Dokter">
+              <select value={form.doctor_id} onChange={update('doctor_id')} style={ui.input}>
+                <option value="">Pilih dokter</option>
+                {(doctors.data?.data ?? []).map((doctor) => (
+                  <option key={doctor.doctor_id} value={doctor.doctor_id}>
+                    {doctor.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <Field label="Poli">
+              <select value={form.polyclinic_id} onChange={update('polyclinic_id')} style={ui.input}>
+                <option value="">Pilih poli</option>
+                {(poli.data?.data ?? []).map((item) => (
+                  <option key={item.polyclinic_id} value={item.polyclinic_id}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <Field label="Hari">
+              <select value={form.day} onChange={update('day')} style={ui.input}>
+                {['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'].map((day) => (
+                  <option key={day} value={day}>
+                    {day}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <Field label="Jam Mulai">
+              <input type="time" value={form.start_time} onChange={update('start_time')} style={ui.input} />
+            </Field>
+
+            <Field label="Jam Selesai">
+              <input type="time" value={form.end_time} onChange={update('end_time')} style={ui.input} />
+            </Field>
+          </div>
+
+          <ErrorNote message={error || schedules.error} onRetry={schedules.reload} />
+          {notice && <p style={styles.notice}>{notice}</p>}
+
+          <div>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? 'Menyimpan...' : 'Simpan Jadwal'}
+            </Button>
+          </div>
+        </form>
+      </Card>
+
+      <Card
+        title="Jadwal Praktik"
+        subtitle="Seluruh jadwal yang terdaftar."
+        actions={<Button variant="ghost" onClick={schedules.reload}>Muat ulang</Button>}
+      >
+        {schedules.loading && <Loading />}
+
+        {!schedules.loading && (
+          <Table
+            empty="Belum ada jadwal."
+            rows={(schedules.data?.data ?? []).map((row) => ({
+              ...row,
+              key: row.schedule_id,
+            }))}
+            columns={[
+              { key: 'day', label: 'Hari' },
+              { key: 'doctor', label: 'Dokter', render: (row) => row.doctors?.name },
+              { key: 'poli', label: 'Poli', render: (row) => row.polyclinics?.name },
+              {
+                key: 'time',
+                label: 'Jam',
+                render: (row) => `${formatTime(row.start_time)}–${formatTime(row.end_time)}`,
+              },
+              {
+                key: 'actions',
+                label: '',
+                render: (row) => (
+                  <Button
+                    variant="danger"
+                    style={{ padding: '5px 9px', fontSize: 12 }}
+                    onClick={() => removeSchedule(row.schedule_id)}
+                  >
+                    Hapus
+                  </Button>
+                ),
+              },
+            ]}
+          />
+        )}
+      </Card>
+    </div>
+  )
+}
+
+function StatCard({ label, value, tone }) {
+  return (
+    <div style={styles.statCard}>
+      <p style={styles.statLabel}>{label}</p>
+      <p style={{ ...styles.statValue, color: tone ?? '#12352F' }}>{value}</p>
+    </div>
+  )
 }
 
 const styles = {
-  page: {
-    minHeight: "100vh",
-    display: "flex",
-    fontFamily: "'Manrope', sans-serif",
-    background: "#F4F7F6",
+  grid2: {
+    display: 'grid',
+    gap: 12,
+    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
   },
-  sidebar: {
-    width: 240,
-    flexShrink: 0,
-    background: "#12352F",
-    color: "#EAF3F0",
-    padding: "28px 18px",
-    display: "flex",
-    flexDirection: "column",
-    transition: "transform .2s ease",
+  grid3: {
+    display: 'grid',
+    gap: 12,
+    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
   },
-  sidebarHeader: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 28,
-    paddingBottom: 20,
-    borderBottom: "1px solid rgba(255,255,255,0.12)",
+  formBox: {
+    background: '#F8FBFA',
+    border: '1px solid #E3ECE9',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    display: 'grid',
+    gap: 12,
   },
-  crossMark: {
-    position: "relative",
-    width: 22,
-    height: 22,
-    flexShrink: 0,
+  notice: {
+    background: '#EEF6F3',
+    border: '1px solid #BFE0D5',
+    color: '#22695C',
+    borderRadius: 8,
+    padding: '10px 12px',
+    fontSize: 13,
+    margin: '0 0 12px',
   },
-  crossV: {
-    position: "absolute",
-    left: "50%",
-    top: 0,
-    width: 3,
-    height: 22,
-    background: "#5FBFA9",
-    transform: "translateX(-50%)",
-    borderRadius: 2,
+  statGrid: {
+    display: 'grid',
+    gap: 12,
+    gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
   },
-  crossH: {
-    position: "absolute",
-    top: "50%",
-    left: 0,
-    height: 3,
-    width: 22,
-    background: "#5FBFA9",
-    transform: "translateY(-50%)",
-    borderRadius: 2,
+  statCard: {
+    background: '#FFFFFF',
+    border: '1px solid #E3ECE9',
+    borderRadius: 14,
+    padding: 16,
   },
-  roleLabel: {
-    margin: 0,
+  statLabel: {
+    margin: '0 0 6px',
     fontSize: 11,
     fontWeight: 700,
-    color: "#7FB8AB",
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    color: '#5C6B67',
   },
-  userName: {
+  statValue: {
     margin: 0,
-    fontSize: 14,
-    fontWeight: 600,
-    color: "#FFFFFF",
-  },
-  navHeading: {
-    fontSize: 12,
-    fontWeight: 700,
-    color: "#7FB8AB",
-    margin: "0 0 10px 4px",
-  },
-  menuButton: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    width: "100%",
-    padding: "10px 12px",
-    marginBottom: 4,
-    background: "transparent",
-    border: "none",
-    borderRadius: 8,
-    color: "#D3E6E0",
-    fontSize: 14,
-    fontWeight: 500,
-    fontFamily: "'Manrope', sans-serif",
-    cursor: "pointer",
-    textAlign: "left",
-  },
-  menuButtonActive: {
-    background: "rgba(95, 191, 169, 0.16)",
-    color: "#FFFFFF",
-    fontWeight: 700,
-  },
-  logoutBtn: {
-    marginTop: "auto",
-    padding: "10px 12px",
-    background: "transparent",
-    border: "1px solid rgba(255,255,255,0.25)",
-    borderRadius: 8,
-    color: "#EAF3F0",
-    fontSize: 13,
-    fontWeight: 600,
-    cursor: "pointer",
-    fontFamily: "'Manrope', sans-serif",
-  },
-  main: {
-    flex: 1,
-    padding: "32px 40px",
-    minWidth: 0,
-  },
-  topBar: {
-    display: "flex",
-    alignItems: "flex-start",
-    gap: 12,
-    marginBottom: 24,
-  },
-  menuToggle: {
-    display: "none",
-    border: "1px solid #D7E1DE",
-    background: "#FFFFFF",
-    borderRadius: 8,
-    padding: 8,
-    cursor: "pointer",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  pageTitle: {
-    fontFamily: "'Source Serif 4', serif",
     fontSize: 26,
-    fontWeight: 700,
-    color: "#132A25",
-    margin: "0 0 4px 0",
+    fontWeight: 800,
+    fontFamily: "'Source Serif 4', serif",
   },
-  pageSubtitle: {
-    fontSize: 14,
-    color: "#5C6B67",
-    margin: 0,
+  poliChip: {
+    background: '#EEF3F1',
+    color: '#4A5C57',
+    borderRadius: 8,
+    padding: '6px 10px',
+    fontSize: 12,
+    fontWeight: 600,
   },
-  contentCard: {
-    background: "#FFFFFF",
-    border: "1px solid #E3ECE9",
-    borderRadius: 14,
-    padding: 28,
-    maxWidth: 640,
-  },
-  contentBody: {
-    fontSize: 14,
-    lineHeight: 1.7,
-    color: "#374942",
-    margin: 0,
-  },
-};
+}

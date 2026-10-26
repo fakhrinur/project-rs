@@ -7,7 +7,11 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dev:server": "npm --prefix server run dev",
+    "start:server": "npm --prefix server run start",
+    "db:generate": "npm --prefix server run db:generate",
+    "db:seed": "npm --prefix server run db:seed"
   },
   "dependencies": {
     "react": "^19.2.8",

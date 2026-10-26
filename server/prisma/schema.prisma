@@ -7,7 +7,118 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Model akan dibuat otomatis dari database yang sudah ada lewat:
-//   npm run db:pull
-// Setelah itu jalankan:
-//   npm run db:generate
+model doctor_schedules {
+  schedule_id   Int         @id @default(autoincrement())
+  doctor_id     Int
+  polyclinic_id Int
+  day           String      @db.VarChar(20)
+  start_time    DateTime    @db.Time(6)
+  end_time      DateTime    @db.Time(6)
+  doctors       doctors     @relation(fields: [doctor_id], references: [doctor_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_schedule_doctor")
+  polyclinics   polyclinics @relation(fields: [polyclinic_id], references: [polyclinic_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_schedule_polyclinic")
+}
+
+model doctors {
+  doctor_id        Int                @id @default(autoincrement())
+  user_id          Int?               @unique
+  doctor_code      String             @unique @db.VarChar(20)
+  name             String             @db.VarChar(100)
+  specialization   String?            @db.VarChar(100)
+  phone            String?            @db.VarChar(20)
+  created_at       DateTime?          @default(now()) @db.Timestamp(6)
+  doctor_schedules doctor_schedules[]
+  users            users?             @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_doctor_user")
+  registrations    registrations[]
+}
+
+model medical_records {
+  medical_record_id Int             @id @default(autoincrement())
+  registration_id   Int             @unique
+  diagnosis         String?
+  symptoms          String?
+  treatment         String?
+  notes             String?
+  created_at        DateTime?       @default(now()) @db.Timestamp(6)
+  registrations     registrations   @relation(fields: [registration_id], references: [registration_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_medical_registration")
+  prescriptions     prescriptions[]
+}
+
+model medicines {
+  medicine_id   Int             @id @default(autoincrement())
+  medicine_code String          @unique @db.VarChar(20)
+  name          String          @db.VarChar(100)
+  category      String?         @db.VarChar(50)
+  stock         Int?            @default(0)
+  unit          String?         @db.VarChar(20)
+  price         Decimal?        @default(0) @db.Decimal(12, 2)
+  prescriptions prescriptions[]
+}
+
+model patients {
+  patient_id    Int             @id @default(autoincrement())
+  user_id       Int?            @unique
+  nik           String?         @unique @db.VarChar(20)
+  name          String          @db.VarChar(100)
+  gender        String?         @db.VarChar(10)
+  birth_date    DateTime?       @db.Date
+  address       String?
+  phone         String?         @db.VarChar(20)
+  blood_type    String?         @db.VarChar(5)
+  created_at    DateTime?       @default(now()) @db.Timestamp(6)
+  users         users?          @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_patient_user")
+  registrations registrations[]
+}
+
+model payments {
+  payment_id      Int           @id @default(autoincrement())
+  registration_id Int           @unique
+  amount          Decimal       @db.Decimal(12, 2)
+  payment_method  String?       @db.VarChar(30)
+  payment_status  String?       @default("belum_bayar") @db.VarChar(20)
+  paid_at         DateTime?     @db.Timestamp(6)
+  registrations   registrations @relation(fields: [registration_id], references: [registration_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_payment_registration")
+}
+
+model polyclinics {
+  polyclinic_id    Int                @id @default(autoincrement())
+  name             String             @db.VarChar(100)
+  description      String?
+  doctor_schedules doctor_schedules[]
+  registrations    registrations[]
+}
+
+model prescriptions {
+  prescription_id   Int             @id @default(autoincrement())
+  medical_record_id Int
+  medicine_id       Int
+  quantity          Int
+  dosage            String?         @db.VarChar(100)
+  instructions      String?
+  medicines         medicines       @relation(fields: [medicine_id], references: [medicine_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_prescription_medicine")
+  medical_records   medical_records @relation(fields: [medical_record_id], references: [medical_record_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_prescription_record")
+}
+
+model registrations {
+  registration_id   Int              @id @default(autoincrement())
+  patient_id        Int
+  doctor_id         Int
+  polyclinic_id     Int
+  registration_date DateTime?        @default(now()) @db.Timestamp(6)
+  complaint         String?
+  status            String?          @default("menunggu") @db.VarChar(20)
+  medical_records   medical_records?
+  payments          payments?
+  doctors           doctors          @relation(fields: [doctor_id], references: [doctor_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_registration_doctor")
+  patients          patients         @relation(fields: [patient_id], references: [patient_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_registration_patient")
+  polyclinics       polyclinics      @relation(fields: [polyclinic_id], references: [polyclinic_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_registration_polyclinic")
+}
+
+model users {
+  user_id    Int       @id @default(autoincrement())
+  username   String    @unique @db.VarChar(50)
+  password   String    @db.VarChar(255)
+  role       String    @db.VarChar(20)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  doctors    doctors?
+  patients   patients?
+}

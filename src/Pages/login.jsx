@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../lib/AuthContext";
 
 /**
  * Halaman Login — Sistem Manajemen Rumah Sakit
@@ -23,22 +24,22 @@ const ROLES = [
   {
     id: "pasien",
     label: "Pasien",
-    idLabel: "NIK",
-    idPlaceholder: "Masukkan NIK 16 digit",
+    idLabel: "NIK atau Username",
+    idPlaceholder: "3201234567890001 / pasien1",
     helper: "Masuk untuk lihat jadwal periksa, rekam medis, dan hasil lab.",
   },
   {
     id: "petugas",
     label: "Petugas",
-    idLabel: "ID Pegawai",
-    idPlaceholder: "Contoh: PTG-00231",
+    idLabel: "Username Petugas",
+    idPlaceholder: "Contoh: petugas1",
     helper: "Masuk untuk kelola pendaftaran, jadwal, dan data pasien.",
   },
   {
     id: "dokter",
     label: "Dokter",
-    idLabel: "No. STR",
-    idPlaceholder: "Contoh: 4021012345678",
+    idLabel: "No. STR atau Username",
+    idPlaceholder: "4021012345678 / dokter1",
     helper: "Masuk untuk lihat jadwal praktik dan rekam medis pasien.",
   },
 ];
@@ -51,6 +52,7 @@ const DASHBOARD_PATH = {
 
 export default function Login() {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [activeRole, setActiveRole] = useState("pasien");
   const [form, setForm] = useState({ identifier: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
@@ -73,13 +75,9 @@ export default function Login() {
     const next = {};
     if (!form.identifier.trim()) {
       next.identifier = `${role.idLabel} wajib diisi`;
-    } else if (role.id === "pasien" && !/^\d{16}$/.test(form.identifier.trim())) {
-      next.identifier = "NIK harus terdiri dari 16 digit angka";
     }
     if (!form.password) {
       next.password = "Kata sandi wajib diisi";
-    } else if (form.password.length < 6) {
-      next.password = "Kata sandi minimal 6 karakter";
     }
     return next;
   }
@@ -92,24 +90,15 @@ export default function Login() {
 
     setIsSubmitting(true);
     try {
-      // TODO: ganti bagian ini dengan pemanggilan API asli, contoh:
-      //
-      // const res = await fetch("/api/login", {
-      //   method: "POST",
-      //   headers: { "Content-Type": "application/json" },
-      //   body: JSON.stringify({ role: activeRole, ...form }),
-      // });
-      // const data = await res.json();
-      // if (!res.ok) throw new Error(data.message);
-      // localStorage.setItem("token", data.token);
-      // localStorage.setItem("role", activeRole);
+      const user = await login({
+        role: activeRole,
+        identifier: form.identifier.trim(),
+        password: form.password,
+      });
 
-      await new Promise((resolve) => setTimeout(resolve, 900)); // simulasi request ke backend
-
-      // Redirect otomatis ke dashboard sesuai role yang dipilih
-      navigate(DASHBOARD_PATH[activeRole]);
-    } catch {
-      setErrors({ form: "Login gagal. Periksa kembali data lu." });
+      navigate(DASHBOARD_PATH[user.role] ?? "/", { replace: true });
+    } catch (err) {
+      setErrors({ form: err.message || "Login gagal. Periksa kembali data Anda." });
     } finally {
       setIsSubmitting(false);
     }
@@ -251,6 +240,13 @@ export default function Login() {
                 <a href="#lupa-sandi" style={styles.forgotLink}>
                   Lupa kata sandi?
                 </a>
+
+                <div style={styles.demoBox}>
+                  <p style={styles.demoTitle}>Akun demo</p>
+                  <p style={styles.demoText}>
+                    pasien1 · petugas1 · dokter1 — kata sandi: dummy_password
+                  </p>
+                </div>
               </form>
           </div>
         </div>
@@ -461,6 +457,27 @@ const styles = {
     fontSize: 13,
     color: "#2F8F7E",
     textDecoration: "none",
+  },
+  demoBox: {
+    marginTop: 18,
+    padding: "10px 12px",
+    borderRadius: 8,
+    background: "#F4F7F6",
+    border: "1px dashed #C9DAD5",
+  },
+  demoTitle: {
+    margin: "0 0 3px 0",
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+    color: "#2F8F7E",
+  },
+  demoText: {
+    margin: 0,
+    fontSize: 12,
+    lineHeight: 1.6,
+    color: "#374942",
   },
   successBox: {
     background: "#EEF6F3",
